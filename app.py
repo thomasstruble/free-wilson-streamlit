@@ -23,10 +23,12 @@ import numpy as np
 sns.set(rc={'figure.figsize': (10, 10)})
 sns.set_style('whitegrid')
 sns.set_context('talk')
+debug=False
 
 #Code adapted from Pat Walters https://github.com/PatWalters/practical_cheminformatics_tutorials/blob/main/sar_analysis/free_wilson.ipynb
 
 st.title('Free Wilson Analysis')
+st.markdown('This is based off Pat Walters code [here](https://github.com/PatWalters/practical_cheminformatics_tutorials/blob/main/sar_analysis/free_wilson.ipynb)')
 st.sidebar.header("Configuration")
 input_filename = st.sidebar.file_uploader('Upload CSV File here. ')
 if not input_filename:
@@ -35,7 +37,6 @@ if not input_filename:
 data_load_state = st.sidebar.text('Loading data...')
 # Load 10,000 rows of data into the dataframe.
 df = pd.read_csv(input_filename)
-df['mol'] = df.SMILES.apply(Chem.MolFromSmiles)
 # Notify the reader that the data was successfully loaded.
 data_load_state.text('Loading data...done!')
 
@@ -44,8 +45,10 @@ st.write(df.head())
 # print(df.select_dtypes('float64').columns)
 
 # st.text('Autodetecting columns with numbers')
-st.sidebar.selectbox('Please choose the column you want to run with free wilson', df.select_dtypes('float64').columns)
-st.sidebar.selectbox('Please choose the SMILES column you want to run with free wilson', df.select_dtypes('object').columns)
+measure_column = st.sidebar.selectbox('Please choose the column you want to run with free wilson', df.select_dtypes('float64').columns)
+smiles_column = st.sidebar.selectbox('Please choose the SMILES column you want to run with free wilson', df.select_dtypes('object').columns)
+df['mol'] = df[smiles_column].apply(Chem.MolFromSmiles)
+df['pIC50'] = df[measure_column]
 
 # core_smiles = "c1ccc(C2CC3CCC(C2)N3)cc1"
 # core_mol = Chem.MolFromSmiles(core_smiles)
@@ -161,7 +164,7 @@ if st.button('Run Free Wilson'):
             desc = enc.transform([p])                           
             prod_pred_ic50 = full_model.predict(desc)[0]
             prod_list.append([prod_smi,prod_pred_ic50])
-        if i == 5000:
+        if debug and i == 5000:
             break
 
     prod_df = pd.DataFrame(prod_list,columns=["SMILES","Pred_pIC50"])
@@ -177,8 +180,9 @@ if st.button('Run Free Wilson'):
 
     components.html(prods_html, width=900, height=500, scrolling=True)
 
+    prod_df = prod_df.rename(columns={'Pred_pIC50': f"Pred_{measure_column}"})
 
-    st.subheader('Download option')
+    st.subheader('Download option: Beware this Reruns the whole analysis so only press download when done with the interactive plots')
     st.text('peek at data')
     st.write(prod_df.head())
     st.download_button(
