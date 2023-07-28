@@ -1,0 +1,7 @@
+pandas 
+mols2grid 
+scikit-learn 
+seaborn 
+useful_rdkit_utils 
+numpy
+streamlit
