@@ -42,27 +42,24 @@ data_load_state.text('Loading data...done!')
 
 st.subheader('Peek at 5 rows data')
 st.write(df.head())
-# print(df.select_dtypes('float64').columns)
 
-# st.text('Autodetecting columns with numbers')
 measure_column = st.sidebar.selectbox('Please choose the column you want to run with free wilson', df.select_dtypes('float64').columns)
 smiles_column = st.sidebar.selectbox('Please choose the SMILES column you want to run with free wilson', df.select_dtypes('object').columns)
 df['mol'] = df[smiles_column].apply(Chem.MolFromSmiles)
 df['pIC50'] = df[measure_column]
+st.text(f'Before dropping invalid rows you data has {len(df)} valid entries')
+st.warning(f'{df.mol.isna().sum()} of your SMILES are invalid and {df.pIC50.isna().sum()} of your measurments are invalid')
+df = df.dropna(subset=['mol', 'pIC50'])
+st.text(f'After dropping invalid rows you data has {len(df)} valid entries')
 
-# core_smiles = "c1ccc(C2CC3CCC(C2)N3)cc1"
-# core_mol = Chem.MolFromSmiles(core_smiles)
 
 core_smiles = st.sidebar.text_input('Input your Core SMILES here', placeholder="c1ccc(C2CC3CCC(C2)N3)cc1")
 if not core_smiles and debug:
     core_smiles = "c1ccc(C2CC3CCC(C2)N3)cc1"
 
-if st.button('Run Free Wilson') and core_smiles:
-    # try:
+if core_smiles:
     core_mol = Chem.MolFromSmiles(core_smiles)
-    # except:
     if not core_mol:
-        # st.text('ERROR: Your SMILES string is not valid')
         st.error('ERROR: Your SMILES string for the core is not valid')
         print('errror')
         st. stop()
@@ -149,51 +146,53 @@ if st.button('Run Free Wilson') and core_smiles:
     already_made_smiles = set([Chem.MolToSmiles(x) for x in df.mol])
 
     st.subheader('Enumerating the products')
-    progress_text = "Enumeration in progress"
-    my_bar = st.progress(0, text=progress_text)
+    if st.button('Enumerate Products'):
+        
+        progress_text = "Enumeration in progress"
+        my_bar = st.progress(0, text=progress_text)
 
-    uru.rd_shut_the_hell_up()
-    prod_list = []
-    for i,p in enumerate(product(*enc.categories)):
-        my_bar.progress(i / total_possible_products, text=f"Enumeration in progress, total products = {total_possible_products}")
-        core_smiles = rgroup_df.Core.values[0]
-        smi = (".".join(p))
-        mol = Chem.MolFromSmiles(smi+"."+core_smiles)
-        prod = Chem.molzip(mol)
-        prod = Chem.RemoveAllHs(prod)
-        prod_smi = Chem.MolToSmiles(prod)
-        if prod_smi not in already_made_smiles:
-            desc = enc.transform([p])                           
-            prod_pred_ic50 = full_model.predict(desc)[0]
-            prod_list.append([prod_smi,prod_pred_ic50])
-        if debug and i == 5000:
-            break
+        uru.rd_shut_the_hell_up()
+        prod_list = []
+        for i,p in enumerate(product(*enc.categories)):
+            my_bar.progress(i / total_possible_products, text=f"Enumeration in progress, total products = {total_possible_products}")
+            core_smiles = rgroup_df.Core.values[0]
+            smi = (".".join(p))
+            mol = Chem.MolFromSmiles(smi+"."+core_smiles)
+            prod = Chem.molzip(mol)
+            prod = Chem.RemoveAllHs(prod)
+            prod_smi = Chem.MolToSmiles(prod)
+            if prod_smi not in already_made_smiles:
+                desc = enc.transform([p])                           
+                prod_pred_ic50 = full_model.predict(desc)[0]
+                prod_list.append([prod_smi,prod_pred_ic50])
+            if debug and i == 5000:
+                break
 
-    prod_df = pd.DataFrame(prod_list,columns=["SMILES","Pred_pIC50"])
-    prod_df.sort_values("Pred_pIC50",ascending=False,inplace=True)
+        prod_df = pd.DataFrame(prod_list,columns=["SMILES","Pred_pIC50"])
+        prod_df.sort_values("Pred_pIC50",ascending=False,inplace=True)
 
-    best_df = prod_df.head(100).copy()
-    best_df['mol'] = best_df.SMILES.apply(Chem.MolFromSmiles)
-    for mol in best_df.mol:
-        AllChem.GenerateDepictionMatching2DStructure(mol,core_mol)
-    prods_html = mols2grid.display(best_df,mol_col='mol',use_coords=True, prerender=True, substruct_highlight=False,
-                    transform={"Pred_pIC50" : lambda x: f"{x:.1f}"},
-                    subset=["img","Pred_pIC50"])._repr_html_()
+        best_df = prod_df.head(100).copy()
+        best_df['mol'] = best_df.SMILES.apply(Chem.MolFromSmiles)
+        for mol in best_df.mol:
+            AllChem.GenerateDepictionMatching2DStructure(mol,core_mol)
+        prods_html = mols2grid.display(best_df,mol_col='mol',use_coords=True, prerender=True, substruct_highlight=False,
+                        transform={"Pred_pIC50" : lambda x: f"{x:.1f}"},
+                        subset=["img","Pred_pIC50"])._repr_html_()
 
-    components.html(prods_html, width=900, height=500, scrolling=True)
+        components.html(prods_html, width=900, height=500, scrolling=True)
 
-    prod_df = prod_df.rename(columns={'Pred_pIC50': f"Pred_{measure_column}"})
+        prod_df = prod_df.rename(columns={'Pred_pIC50': f"Pred_{measure_column}"})
 
-    st.subheader('Download option: Beware this Reruns the whole analysis so only press download when done with the interactive plots')
-    st.text('peek at data')
-    st.write(prod_df.head())
-    st.download_button(
-    "Press to Download the full enumerated dataframe",
-    prod_df.to_csv(index=False).encode('utf-8'),
-    "results.csv",
-    "text/csv",
-    key='download-csv'
-    )
+        st.subheader('Download option: Beware this Reruns the whole analysis so only press download when done with the interactive plots')
+        st.text('peek at data')
+        st.write(prod_df.head())
+        st.download_button(
+        "Press to Download the full enumerated dataframe",
+        prod_df.to_csv(index=False).encode('utf-8'),
+        "results.csv",
+        "text/csv",
+        key='download-csv'
+        )
 
-else:
+elif not core_smiles:
     st.text('Error: Are you sure you defined all the configurations in the side panel?')
