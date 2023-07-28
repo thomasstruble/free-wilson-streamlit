@@ -54,21 +54,23 @@ df['pIC50'] = df[measure_column]
 # core_mol = Chem.MolFromSmiles(core_smiles)
 
 core_smiles = st.sidebar.text_input('Input your Core SMILES here', placeholder="c1ccc(C2CC3CCC(C2)N3)cc1")
-if not core_smiles:
+if not core_smiles and debug:
     core_smiles = "c1ccc(C2CC3CCC(C2)N3)cc1"
 
-try:
+if st.button('Run Free Wilson') and core_smiles:
+    # try:
     core_mol = Chem.MolFromSmiles(core_smiles)
-except:
-    st.text('ERROR: Your SMILES string is not valid')
-    st.error('This is an error')
+    # except:
+    if not core_mol:
+        # st.text('ERROR: Your SMILES string is not valid')
+        st.error('ERROR: Your SMILES string for the core is not valid')
+        print('errror')
+        st. stop()
 
-Compute2DCoords(core_mol)
-for mol in df.mol:
-    AllChem.GenerateDepictionMatching2DStructure(mol,core_mol)
-# raw_html = mols2grid.display(df_result, mapping={"smiles": "SMILES"})._repr_html_()
+    Compute2DCoords(core_mol)
+    for mol in df.mol:
+        AllChem.GenerateDepictionMatching2DStructure(mol,core_mol)
 
-if st.button('Run Free Wilson'):
     st.subheader('All the molecules')
     raw_html= mols2grid.display(df,mol_col='mol',use_coords=True, prerender=True, substruct_highlight=False)._repr_html_()
     components.html(raw_html, width=900, height=550, scrolling=True)
@@ -192,3 +194,6 @@ if st.button('Run Free Wilson'):
     "text/csv",
     key='download-csv'
     )
+
+else:
+    st.text('Error: Are you sure you defined all the configurations in the side panel?')
